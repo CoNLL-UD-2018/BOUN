@@ -217,19 +217,29 @@ vector<vector<string>> readConllData(const string& filename, const string& keywo
         vector<string> tokens(istream_iterator<string>{iss},
                                            istream_iterator<string>());
 
-        if(line != "")
+       // cerr << "line:" << line << ":" << endl;
+        if(line != "" && !boost::starts_with(line, "#") )
         {
+           // cerr << "in: " << line << endl;
             string tok = "";
             if(keyword == "word")
                tok = tokens.at(1);
             else if(keyword == "lemma")
                tok = tokens.at(2);
+            else if(keyword == "upos")
+               tok = tokens.at(3);
+            else if(keyword == "xpos")
+               tok = tokens.at(4);
             else if(keyword == "morp")
                tok = tokens.at(5);
+            else if(keyword == "space")
+               tok = tokens.at(9);
+
+            
     
             xsentence.push_back(tok);
         }
-        else
+        else if (line == "")
         {
          
            xsentence.push_back("ROOT");
@@ -242,6 +252,54 @@ vector<vector<string>> readConllData(const string& filename, const string& keywo
    
 }
 //mycode
+vector<string> tokenizeMorpFeats(const string& morps)
+{
+     vector<string> features;
+     string mcase = "_";
+     string tense = "_";
+     string verbform = "_";
+     string voice = "_"; //default value
+
+     boost::char_separator<char> sep("|");
+     boost::tokenizer<boost::char_separator<char>> tokens(morps, sep);
+
+     for (const auto& t : tokens) {
+         if(boost::starts_with(t, "Case"))
+         {
+            std::size_t pos = t.find("=");
+
+            std::string featValue = t.substr(pos+1); 
+            mcase = featValue;
+         }
+         else if(boost::starts_with(t, "Tense"))
+         {
+            std::size_t pos = t.find("=");
+
+            std::string featValue = t.substr(pos+1); 
+            tense = featValue;
+         }
+         else if(boost::starts_with(t, "VerbForm"))
+         {
+            std::size_t pos = t.find("=");
+
+            std::string featValue = t.substr(pos+1); 
+            verbform = featValue;
+         }
+         else if(boost::starts_with(t, "Voice"))
+         {
+            std::size_t pos = t.find("=");
+
+            std::string featValue = t.substr(pos+1); 
+            voice = featValue;
+         }
+     }
+     features.push_back(mcase);
+     features.push_back(tense);
+     features.push_back(verbform);
+     features.push_back(voice);
+
+    return features;
+}
 vector<vector<string>> generateMorphFeat(const string& filename)
 {
        
@@ -278,7 +336,6 @@ vector<vector<string>> generateMorphFeat(const string& filename)
     }
     return MorpSents;
 }
-
 //mycode ends
 void InitCommandLine(int argc, char** argv, po::variables_map* conf) {
   po::options_description opts("Configuration options");
@@ -358,8 +415,19 @@ struct ParserBuilder {
   LSTMBuilder fw_char_lstm_root; 
   LSTMBuilder fw_char_lstm_stem; 
 
+  LSTMBuilder fw_char_lstm_case; 
+  LSTMBuilder fw_char_lstm_tense; 
+  LSTMBuilder fw_char_lstm_verbform; 
+  LSTMBuilder fw_char_lstm_voice; 
+
   LSTMBuilder bw_char_lstm_root; 
   LSTMBuilder bw_char_lstm_stem; 
+
+  LSTMBuilder bw_char_lstm_case; 
+  LSTMBuilder bw_char_lstm_tense; 
+  LSTMBuilder bw_char_lstm_verbform; 
+  LSTMBuilder bw_char_lstm_voice; 
+
   //mycode ends
 
 
@@ -399,8 +467,21 @@ struct ParserBuilder {
       bw_char_lstm(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model), /*Miguel*/
       /*mycode starts*/fw_char_lstm_root(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model),
       fw_char_lstm_stem(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model),
+
+      fw_char_lstm_case(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/4, model),
+      fw_char_lstm_tense(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/4, model),
+      fw_char_lstm_verbform(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/4, model),
+      fw_char_lstm_voice(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/4, model),
+
       bw_char_lstm_root(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model),
-      bw_char_lstm_stem(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model)/*mycode ends*/ {
+      bw_char_lstm_stem(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model),
+
+      bw_char_lstm_case(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/4, model),
+      bw_char_lstm_tense(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/4, model),
+      bw_char_lstm_verbform(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/4, model),
+      bw_char_lstm_voice(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/4, model)
+
+      /*mycode ends*/ {
     if (USE_POS) {
       p_p = model->add_lookup_parameters(POS_SIZE, {POS_DIM, 1});
       p_p2l = model->add_parameters({LSTM_INPUT_DIM, POS_DIM});
@@ -517,6 +598,55 @@ inline unsigned int UTF8Len(unsigned char x) {
   else return 0;
 }
 
+//mycode
+Expression createLstmCharEmbForward(const string& ww, LSTMBuilder& fw_char_lstm, ComputationGraph * & hg, Expression& word_start, Expression& word_end, vector<int>& strevbuffer )
+{
+
+     fw_char_lstm.start_new_sequence();
+     fw_char_lstm.add_input(word_start);
+                               
+     
+     for (unsigned j=0;j<ww.length();j+=UTF8Len(ww[j])){
+
+         std::string wj;
+         for (unsigned h=j;h<j+UTF8Len(ww[j]);h++) wj+=ww[h];
+               
+         int wjint=corpus.charsToInt[wj];
+	 strevbuffer.push_back(wjint);
+         Expression cj=lookup(*hg, char_emb, wjint);
+         fw_char_lstm.add_input(cj);
+     }
+                
+     fw_char_lstm.add_input(word_end);
+                  
+     Expression fw=fw_char_lstm.back();
+
+     return fw;
+}
+Expression createLstmCharEmbBackward(const string& ww, LSTMBuilder& bw_char_lstm, ComputationGraph * & hg, Expression& word_start, Expression& word_end, vector<int>& strevbuffer  )
+{
+
+     //now backwards
+     bw_char_lstm.start_new_sequence();
+             													   
+     bw_char_lstm.add_input(word_end);
+
+     while(!strevbuffer.empty()) {
+	 int wjint=strevbuffer.back();
+	
+	 Expression cj=lookup(*hg, char_emb, wjint);
+         bw_char_lstm.add_input(cj);
+         strevbuffer.pop_back();
+     }
+     bw_char_lstm.add_input(word_start);    
+		   
+     Expression bw = bw_char_lstm.back();
+                                 
+     return bw;
+
+}
+
+//mycode
 
 // *** if correct_actions is empty, this runs greedy decoding ***
 // returns parse actions for input sentence (in training just returns the reference)
@@ -529,6 +659,7 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
                      const vector<unsigned>& sent,  // sent with oovs replaced
                      const vector<WordLemmaPair>& lemmaSent, //my code
                      const vector<string>& lemmaSentTest, //my code
+                     const vector<string>& morpSentTest, //my code
                      const vector<unsigned>& sentPos,
                      const vector<unsigned>& correct_actions,
                      const vector<string>& setOfActions,
@@ -584,9 +715,19 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
 	
        fw_char_lstm_root.new_graph(*hg);
        fw_char_lstm_stem.new_graph(*hg);
+       fw_char_lstm_case.new_graph(*hg);
+       fw_char_lstm_tense.new_graph(*hg);
+       fw_char_lstm_verbform.new_graph(*hg);
+       fw_char_lstm_voice.new_graph(*hg);
+
 
        bw_char_lstm_root.new_graph(*hg);
        bw_char_lstm_stem.new_graph(*hg);
+       bw_char_lstm_case.new_graph(*hg);
+       bw_char_lstm_tense.new_graph(*hg);
+       bw_char_lstm_verbform.new_graph(*hg);
+       bw_char_lstm_voice.new_graph(*hg);
+
 
        //my code ends
 
@@ -632,7 +773,12 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
       }
       // mycode ends
       
+      //mycode morp feature separation
+ 
+      vector<string> morpFeatures;
+      morpFeatures = tokenizeMorpFeats(morpSentTest.at(i));
 
+      //mycode
 
 
       Expression w;
@@ -645,83 +791,54 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
         else {
             std::string ww_root = lemma; 
 	    std::string ww_stem = stem;
+            std::string ww_case = morpFeatures.at(0);
+            std::string ww_tense = morpFeatures.at(1);
+            std::string ww_verbform = morpFeatures.at(2);
+            std::string ww_voice = morpFeatures.at(3);
            
             //root of a word
-	    fw_char_lstm_root.start_new_sequence();
-	    fw_char_lstm_root.add_input(word_start);
-	    std::vector<int> strevbuffer;
-                              
-	    for (unsigned j=0;j<ww_root.length();j+=UTF8Len(ww_root[j])){  
-            //     std::cout << j << " " << ww_root << " root char len: " << ww_root.length() <<" " << ww_root[j] << UTF8Len(ww_root[j]) << endl;
-	        std::string wj;
-                for (unsigned h=j;h<j+UTF8Len(ww_root[j]);h++) wj+=ww_root[h];
-               
-                int wjint=corpus.charsToInt[wj];
-		 
-		strevbuffer.push_back(wjint);
-                Expression cj=lookup(*hg, char_emb, wjint);
-                fw_char_lstm_root.add_input(cj);
-            }
-            fw_char_lstm_root.add_input(word_end);
-            Expression fw_r=fw_char_lstm_root.back();
+            std::vector<int> strevbuffer;
+            Expression fw_r = createLstmCharEmbForward(ww_root, fw_char_lstm_root, hg, word_start, word_end, strevbuffer);
             //now backwards for root
-            bw_char_lstm_root.start_new_sequence();
-             
-            bw_char_lstm_root.add_input(word_end);
-
-            while(!strevbuffer.empty()) {
-		int wjint=strevbuffer.back();
-	
-	        Expression cj=lookup(*hg, char_emb, wjint);
-                bw_char_lstm_root.add_input(cj); 
-                strevbuffer.pop_back();
-	    }
-            bw_char_lstm_root.add_input(word_start);    
-
-            Expression bw_r=bw_char_lstm_root.back();
+            Expression bw_r = createLstmCharEmbBackward(ww_root, bw_char_lstm_root, hg, word_start, word_end, strevbuffer);
 													                         
             //backwards root done
                                  
-            //cerr << "root of word done" << endl;
 	    //stem of a word
-	    fw_char_lstm_stem.start_new_sequence();
-	    fw_char_lstm_stem.add_input(word_start);
-                               
-            std::vector<int> strevbuffer_stem;
-	    for (unsigned j=0;j<ww_stem.length();j+=UTF8Len(ww_stem[j])){
-            //       std::cout << j << " " << ww_stem << " stem char len: " << ww_stem.length() <<" " << ww_stem[j] << UTF8Len(ww_stem[j]) << endl;
-		std::string wj;
-                for (unsigned h=j;h<j+UTF8Len(ww_stem[j]);h++) wj+=ww_stem[h];
-               
-                int wjint=corpus.charsToInt[wj];
-	        strevbuffer_stem.push_back(wjint);
-                Expression cj=lookup(*hg, char_emb, wjint);
-                fw_char_lstm_stem.add_input(cj);
-            }
-                
-            fw_char_lstm_stem.add_input(word_end);
-                  
-            Expression fw_s=fw_char_lstm_stem.back();
-
-            //now backwards for stem
-            bw_char_lstm_stem.start_new_sequence();
-             													   
-            bw_char_lstm_stem.add_input(word_end);
-
-            while(!strevbuffer_stem.empty()) {
-	        int wjint=strevbuffer_stem.back();
-	
-	        Expression cj=lookup(*hg, char_emb, wjint);
-                bw_char_lstm_stem.add_input(cj);
-		strevbuffer_stem.pop_back();
-	    }
-            bw_char_lstm_stem.add_input(word_start);    
-		   
-            Expression bw_s=bw_char_lstm_stem.back();
-                                 
+            std::vector<int> strevbuffer2;
+	    Expression fw_s = createLstmCharEmbForward(ww_stem, fw_char_lstm_stem, hg, word_start, word_end, strevbuffer2);
+            //now backwards for root
+            Expression bw_s = createLstmCharEmbBackward(ww_stem, bw_char_lstm_stem, hg, word_start, word_end, strevbuffer2);
+													                                  
             //backwards stem done
+
+            //forward case feature
+            std::vector<int> strevbuffer3;
+	    Expression fw_c = createLstmCharEmbForward(ww_case, fw_char_lstm_case, hg, word_start, word_end, strevbuffer3);
+            //now backwards for case
+            Expression bw_c = createLstmCharEmbBackward(ww_case, bw_char_lstm_case, hg, word_start, word_end, strevbuffer3);
+
+            //forward tense feature
+            std::vector<int> strevbuffer4;
+	    Expression fw_t = createLstmCharEmbForward(ww_tense, fw_char_lstm_tense, hg, word_start, word_end, strevbuffer4);
+            //now backwards for tense
+            Expression bw_t = createLstmCharEmbBackward(ww_tense, bw_char_lstm_tense, hg, word_start, word_end, strevbuffer4);
+
+            //forward verbform feature
+            std::vector<int> strevbuffer5;
+	    Expression fw_vf = createLstmCharEmbForward(ww_verbform, fw_char_lstm_verbform, hg, word_start, word_end, strevbuffer5);
+            //now backwards for verbform
+            Expression bw_vf = createLstmCharEmbBackward(ww_verbform, bw_char_lstm_verbform, hg, word_start, word_end, strevbuffer5);
+
+            //forward voice feature
+            std::vector<int> strevbuffer6;
+	    Expression fw_v = createLstmCharEmbForward(ww_voice, fw_char_lstm_voice, hg, word_start, word_end, strevbuffer6);
+            //now backwards for voice
+            Expression bw_v = createLstmCharEmbBackward(ww_voice, bw_char_lstm_voice, hg, word_start, word_end, strevbuffer6);
+
                 
-             vector<Expression> tt = {fw_r, bw_r, fw_s, bw_s};
+            
+             vector<Expression> tt = {fw_r, bw_r, fw_s, bw_s, fw_c, bw_c, fw_t, bw_t, fw_vf, bw_vf, fw_v, bw_v};
             
              w=concatenate(tt); //and this goes into the buffer...
 		        
@@ -1196,6 +1313,9 @@ void output_conll(const vector<unsigned>& sentence,
 void output_conll_test(const vector<unsigned>& sentence, 
                   const vector<string>& lemmaSent, //my code
                   const vector<string>& morpFeatSent, //my code
+                  const vector<string>& uposSentTest, //my code
+                  const vector<string>& xposSentTest, //my code
+                  const vector<string>& spaceSentTest, //my code
                   const vector<unsigned>& pos,
                   const vector<string>& sentenceUnkStrings, 
                   const map<unsigned, string>& intToWords, 
@@ -1228,25 +1348,25 @@ void output_conll_test(const vector<unsigned>& sentence,
     cerr << wit << endl;
     cerr << lemmaSent.at(i) << endl;
     cerr << pit->second << endl;*/
-    boost::char_separator<char> sep("_");
-    boost::tokenizer<boost::char_separator<char>> tokens(pit->second, sep);
-    vector<string> POS;
-    for (const auto& t : tokens) {
+   // boost::char_separator<char> sep("_");
+   // boost::tokenizer<boost::char_separator<char>> tokens(pit->second, sep);
+   // vector<string> POS;
+   // for (const auto& t : tokens) {
         //cerr << "hi" << endl;
         //cerr << t << endl;
-        POS.push_back(t);
-    }
+     //   POS.push_back(t);
+   // }
     //mycode
     cout << index << '\t'       // 1. ID 
          << wit << '\t'         // 2. FORM
          << lemmaSent.at(i) << '\t'         // 3. LEMMA 
-         << POS.at(0) << '\t'         // 4. CPOSTAG 
-         << "_" << '\t' // 5. POSTAG
+         << uposSentTest.at(i) << '\t'         // 4. CPOSTAG 
+         << xposSentTest.at(i) << '\t' // 5. POSTAG
          << morpFeatSent.at(i) << '\t'         // 6. FEATS
          << hyp_head << '\t'    // 7. HEAD
          << hyp_rel << '\t'     // 8. DEPREL
          << "_" << '\t'         // 9. PHEAD
-         << "_" << endl;        // 10. PDEPREL
+         << spaceSentTest.at(i) << endl;        // 10. PDEPREL
   }
   cout << endl;
 }
@@ -1387,13 +1507,16 @@ int main(int argc, char** argv) {
 
     //mycode begins
     std::vector<vector<WordLemmaPair>> train_lemmaSents;
-    //cerr << "hello" << endl;
-   // train_lemmaSents = generateLemmaSents("morp-input-files/tr-ud-train-morp-allsep.txt");
     std::vector<vector<string>> trainWords, trainLemmas, trainMorps;
-
+   // std::vector<vector<string>> trainUPOS, trainXPOS, trainSpace;
+  // cerr << "bwfore trainwords" << endl;
     trainWords = readConllData(trainConllName, "word");
     trainLemmas = readConllData(trainConllName, "lemma");
     trainMorps = readConllData(trainConllName, "morp");	
+  //  cerr << " after trainwords" << endl;
+   // trainUPOS = readConllData(trainConllName, "upos");
+   // trainXPOS = readConllData(trainConllName, "xpos");
+   // trainSpace = readConllData(trainConllName, "space");
     //my code ends
    // cerr << "hi" << endl;
     unsigned trs = 0;
@@ -1432,7 +1555,7 @@ int main(int argc, char** argv) {
 	   const vector<unsigned>& sentencePos=corpus.sentencesPos[order[si]]; 
 	   const vector<unsigned>& actions=corpus.correct_act_sent[order[si]];
            ComputationGraph hg;
-           parser.log_prob_parser(&hg,sentence,tsentence, lemmaSentDummyTrain, lemmaSentTrain, sentencePos,actions,corpus.actions,corpus.intToWords,&right);
+           parser.log_prob_parser(&hg,sentence,tsentence, lemmaSentDummyTrain, lemmaSentTrain, morpSentTrain, sentencePos,actions,corpus.actions,corpus.intToWords,&right);
            double lp = as_scalar(hg.incremental_forward());
            if (lp < 0) {
              cerr << "Log prob < 0 on sentence " << order[si] << ": lp=" << lp << endl;
@@ -1490,7 +1613,7 @@ int main(int argc, char** argv) {
            }
 
            ComputationGraph hg;
-	   vector<unsigned> pred = parser.log_prob_parser(&hg,sentence,tsentence, lemmaSentDummyDev, lemmaSentDev, sentencePos,vector<unsigned>(),corpus.actions,corpus.intToWords,&right);
+	   vector<unsigned> pred = parser.log_prob_parser(&hg,sentence,tsentence, lemmaSentDummyDev, lemmaSentDev, morpSentDev, sentencePos,vector<unsigned>(),corpus.actions,corpus.intToWords,&right);
 	   double lp = 0;
            //vector<unsigned> pred = parser.log_prob_parser_beam(&hg,sentence,sentencePos,corpus.actions,beam_size,&lp);
            llh -= lp;
@@ -1535,6 +1658,8 @@ int main(int argc, char** argv) {
 
 
     std::vector<vector<string>> testWords, testLemmas, testMorps;
+    std::vector<vector<string>> testUPOS, testXPOS, testSpace;
+
 
     cerr << "hello before" << endl;
     if (conf.count("train"))
@@ -1544,6 +1669,10 @@ int main(int argc, char** argv) {
         testWords = readConllData(devConllName, "word");
         testLemmas = readConllData(devConllName, "lemma");
         testMorps = readConllData(devConllName, "morp");
+        testUPOS = readConllData(devConllName, "upos");
+        testXPOS = readConllData(devConllName, "xpos");
+        testSpace = readConllData(devConllName, "space");
+
         cerr << "hello aft dev " << endl;
 
     }
@@ -1553,6 +1682,10 @@ int main(int argc, char** argv) {
         testWords = readConllData(testConllName, "word");
         testLemmas = readConllData(testConllName, "lemma");
         testMorps = readConllData(testConllName, "morp");
+        testUPOS = readConllData(testConllName, "upos");
+        testXPOS = readConllData(testConllName, "xpos");
+        testSpace = readConllData(testConllName, "space");
+
       //  cerr << "hello aft test " << endl;
 
     }
@@ -1569,6 +1702,10 @@ int main(int argc, char** argv) {
       const vector<string> wordSentTest = testWords.at(sii); 
       const vector<string> lemmaSentTest = testLemmas.at(sii);
       const vector<string> morpSentTest = testMorps.at(sii);
+      const vector<string> uposSentTest = testUPOS.at(sii); 
+      const vector<string> xposSentTest = testXPOS.at(sii);
+      const vector<string> spaceSentTest = testSpace.at(sii);
+
       const vector<WordLemmaPair> lemmaSentDummyTest; 
       //mycode
      // cerr << "hello its me i was wondering  " << endl;
@@ -1581,7 +1718,7 @@ int main(int argc, char** argv) {
       double lp = 0;
       vector<unsigned> pred;
       if (beam_size == 1)
-        pred = parser.log_prob_parser(&cg,sentence,tsentence, lemmaSentDummyTest, lemmaSentTest, sentencePos,vector<unsigned>(),corpus.actions,corpus.intToWords,&right);
+        pred = parser.log_prob_parser(&cg,sentence,tsentence, lemmaSentDummyTest, lemmaSentTest, morpSentTest, sentencePos,vector<unsigned>(),corpus.actions,corpus.intToWords,&right);
       else
         pred = parser.log_prob_parser_beam(&cg,sentence,tsentence,sentencePos,corpus.actions,beam_size,&lp);
       llh -= lp;
@@ -1589,7 +1726,7 @@ int main(int argc, char** argv) {
       map<int, string> rel_ref, rel_hyp;
       map<int,int> ref = parser.compute_heads(sentence.size(), actions, corpus.actions, &rel_ref);
       map<int,int> hyp = parser.compute_heads(sentence.size(), pred, corpus.actions, &rel_hyp);
-      output_conll_test(sentence, lemmaSentTest, morpSentTest, sentencePos, sentenceUnkStr, corpus.intToWords, corpus.intToPos, hyp, rel_hyp);
+      output_conll_test(sentence, lemmaSentTest, morpSentTest, uposSentTest, xposSentTest, spaceSentTest, sentencePos, sentenceUnkStr, corpus.intToWords, corpus.intToPos, hyp, rel_hyp);
       correct_heads += compute_correct(ref, hyp, sentence.size() - 1);
       total_heads += sentence.size() - 1;
     }

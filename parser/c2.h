@@ -159,11 +159,11 @@ inline void load_correct_actions(std::string file){
           std::string subString = word.substr(0, underScoreInd);
                
           //mycode*/
-          // split the string (at '-') into word and POS tag.
-          size_t posIndex =  word.rfind('-'); //mycode word.rfind('-');
+          // split the string (at '-') into word and POS tag. Now it is '#'
+          size_t posIndex =  word.rfind('#'); //mycode word.rfind('-');
           
           if (posIndex == std::string::npos) {
-            std::cerr << "cant find the dash in '" << word << "'" << std::endl;
+            std::cerr << "cant find the square in '" << word << "'" << std::endl;
           }
           assert(posIndex != std::string::npos);
    
@@ -345,8 +345,8 @@ inline void load_correct_actionsDev(std::string file) {
             */   
           //mycode
 
-          // split the string (at '-') into word and POS tag.
-          size_t posIndex = word.rfind('-'); //mycode word.rfind('-');
+          // split the string (at '-') into word and POS tag. Now it is '#'
+          size_t posIndex = word.rfind('#'); //mycode word.rfind('-');
 
           assert(posIndex != std::string::npos);
 
