@@ -336,6 +336,23 @@ vector<vector<string>> generateMorphFeat(const string& filename)
     }
     return MorpSents;
 }
+bool isCompVerb(const string& compound_verb)
+{
+    std::ifstream ifs;
+    ifs.open("compound_verbs.txt");
+
+    std::string line;
+
+    while (std::getline(ifs, line)) { 
+
+     //   cerr << "line:  " << line << endl;
+      //  cerr << "comp:  " << compound_verb << endl;
+        if (line == compound_verb) {
+            return true;
+        }
+    }
+    return false;
+}
 //mycode ends
 void InitCommandLine(int argc, char** argv, po::variables_map* conf) {
   po::options_description opts("Configuration options");
@@ -414,12 +431,12 @@ struct ParserBuilder {
   //mycode starts
   LSTMBuilder fw_char_lstm_root; 
   LSTMBuilder fw_char_lstm_stem; 
-/*
+
   LSTMBuilder fw_char_lstm_case; 
   LSTMBuilder fw_char_lstm_tense; 
   LSTMBuilder fw_char_lstm_verbform; 
   LSTMBuilder fw_char_lstm_aspect; 
-*/
+
   LSTMBuilder bw_char_lstm_root; 
   LSTMBuilder bw_char_lstm_stem; 
 /*
@@ -468,11 +485,11 @@ struct ParserBuilder {
       /*mycode starts*/fw_char_lstm_root(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model),
       fw_char_lstm_stem(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model),
 
-     /* fw_char_lstm_case(LAYERS, LSTM_INPUT_DIM, 25, model),
+      fw_char_lstm_case(LAYERS, LSTM_INPUT_DIM, 25, model),
       fw_char_lstm_tense(LAYERS, LSTM_INPUT_DIM, 25, model),
       fw_char_lstm_verbform(LAYERS, LSTM_INPUT_DIM, 25, model),
       fw_char_lstm_aspect(LAYERS, LSTM_INPUT_DIM, 25, model),
-*/
+
       bw_char_lstm_root(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model),
       bw_char_lstm_stem(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model)
 
@@ -715,10 +732,10 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
 	
        fw_char_lstm_root.new_graph(*hg);
        fw_char_lstm_stem.new_graph(*hg);
-      // fw_char_lstm_case.new_graph(*hg);
-      // fw_char_lstm_tense.new_graph(*hg);
-      // fw_char_lstm_verbform.new_graph(*hg);
-      // fw_char_lstm_aspect.new_graph(*hg);
+       fw_char_lstm_case.new_graph(*hg);
+       fw_char_lstm_tense.new_graph(*hg);
+       fw_char_lstm_verbform.new_graph(*hg);
+       fw_char_lstm_aspect.new_graph(*hg);
 
 
        bw_char_lstm_root.new_graph(*hg);
@@ -775,8 +792,8 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
       
       //mycode morp feature separation
      // cerr << "idk" << endl;
-     // vector<string> morpFeatures;
-     // morpFeatures = tokenizeMorpFeats(morpSentTest.at(i));
+      vector<string> morpFeatures;
+      morpFeatures = tokenizeMorpFeats(morpSentTest.at(i));
 
       //mycode
 
@@ -791,11 +808,11 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
         else {
             std::string ww_root = lemma; 
 	    std::string ww_stem = stem;
-       /*     std::string ww_case = morpFeatures.at(0);
+            std::string ww_case = morpFeatures.at(0);
             std::string ww_tense = morpFeatures.at(1);
             std::string ww_verbform = morpFeatures.at(2);
             std::string ww_aspect = morpFeatures.at(3);
-         */  
+           
             //root of a word
             std::vector<int> strevbuffer;
             Expression fw_r = createLstmCharEmbForward(ww_root, fw_char_lstm_root, hg, word_start, word_end, strevbuffer);
@@ -806,41 +823,37 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
                                  
 	    //stem of a word
             std::vector<int> strevbuffer2;
-	    Expression fw_s = createLstmCharEmbForward(ww_stem, fw_char_lstm_stem, hg, word_start, word_end, strevbuffer2);
+	    Expression fw_s = createLstmCharEmbForward( ww_stem, fw_char_lstm_stem, hg, word_start, word_end, strevbuffer2);
             //now backwards for root
             Expression bw_s = createLstmCharEmbBackward(ww_stem, bw_char_lstm_stem, hg, word_start, word_end, strevbuffer2);
 													                                  
             //backwards stem done
-          /*
+          
             //forward case feature
             std::vector<int> strevbuffer3;
 	    Expression fw_c = createLstmCharEmbForward(ww_case, fw_char_lstm_case, hg, word_start, word_end, strevbuffer3);
             //now backwards for case
           //  Expression bw_c = createLstmCharEmbBackward(ww_case, bw_char_lstm_case, hg, word_start, word_end, strevbuffer3);
         
-
             //forward tense feature
             std::vector<int> strevbuffer4;
 	    Expression fw_t = createLstmCharEmbForward(ww_tense, fw_char_lstm_tense, hg, word_start, word_end, strevbuffer4);
             //now backwards for tense
             //Expression bw_t = createLstmCharEmbBackward(ww_tense, bw_char_lstm_tense, hg, word_start, word_end, strevbuffer4);
-
             //forward verbform feature
             std::vector<int> strevbuffer5;
 	    Expression fw_vf = createLstmCharEmbForward(ww_verbform, fw_char_lstm_verbform, hg, word_start, word_end, strevbuffer5);
             //now backwards for verbform
           //  Expression bw_vf = createLstmCharEmbBackward(ww_verbform, bw_char_lstm_verbform, hg, word_start, word_end, strevbuffer5);
-
             //forward aspect feature
             std::vector<int> strevbuffer6;
 	    Expression fw_a = createLstmCharEmbForward(ww_aspect, fw_char_lstm_aspect, hg, word_start, word_end, strevbuffer6);
             //now backwards for voice
           //  Expression bw_a = createLstmCharEmbBackward(ww_aspect, bw_char_lstm_aspect, hg, word_start, word_end, strevbuffer6);
-
-            */    
+                
             
              //vector<Expression> tt = {fw_r, bw_r, fw_s, bw_s, fw_c, bw_c}; //, fw_t, bw_t, fw_vf, bw_vf, fw_v, bw_v};
-             vector<Expression> tt = {fw_r, bw_r, fw_s, bw_s};//, fw_c, fw_t, fw_vf, fw_a};
+             vector<Expression> tt = {fw_r, bw_r, fw_s, bw_s, fw_c, fw_t, fw_vf, fw_a};
              w=concatenate(tt); //and this goes into the buffer...
 		        
 	    //mycode ends
@@ -1311,6 +1324,121 @@ void output_conll(const vector<unsigned>& sentence,
   }
   cout << endl;
 }
+void postprocessing(const vector<unsigned>& sentence, const vector<string>& lemmaSent, const vector<unsigned>& pos, const vector<string>& sentenceUnkStrings,  const map<unsigned, string>& intToWords, 
+                  const map<unsigned, string>& intToPos, map<int,int>& hyp, map<int,string>& rel_hyp)
+{
+
+ for (unsigned i = 0; i < (sentence.size()-1); ++i) {
+    //cerr << "word id: " << i+1 << endl;
+    
+    auto index = i + 1;
+    assert(i < sentenceUnkStrings.size() && 
+           ((sentence[i] == corpus.get_or_add_word(cpyp::Corpus::UNK) &&
+             sentenceUnkStrings[i].size() > 0) ||
+            (sentence[i] != corpus.get_or_add_word(cpyp::Corpus::UNK) &&
+             sentenceUnkStrings[i].size() == 0 &&
+             intToWords.find(sentence[i]) != intToWords.end())));
+
+
+    string wit = (sentenceUnkStrings[i].size() > 0)? 
+    sentenceUnkStrings[i] : intToWords.find(sentence[i])->second;
+    auto pit = intToPos.find(pos[i]);
+    assert(hyp.find(i) != hyp.end());
+    auto hyp_head = hyp.find(i)->second + 1;
+    if (hyp_head == (int)sentence.size()) hyp_head = 0;
+    auto hyp_rel_it = rel_hyp.find(i);
+    assert(hyp_rel_it != rel_hyp.end());
+    auto hyp_rel = hyp_rel_it->second;
+    size_t first_char_in_rel = hyp_rel.find('(') + 1;
+    size_t last_char_in_rel = hyp_rel.rfind(')') - 1;
+    hyp_rel = hyp_rel.substr(first_char_in_rel, last_char_in_rel - first_char_in_rel + 1);
+
+    //info of next word
+    string wit2 = (sentenceUnkStrings[i+1].size() > 0)? 
+    sentenceUnkStrings[i+1] : intToWords.find(sentence[i+1])->second;
+    auto pit2 = intToPos.find(pos[i+1]);
+    assert(hyp.find(i+1) != hyp.end());
+    auto hyp_head2 = hyp.find(i+1)->second + 1;
+    if (hyp_head2 == (int)sentence.size()) hyp_head2 = 0;
+    auto hyp_rel_it2 = rel_hyp.find(i+1);
+    assert(hyp_rel_it2 != rel_hyp.end());
+    auto hyp_rel2 = hyp_rel_it2->second;
+    size_t first_char_in_rel2 = hyp_rel2.find('(') + 1;
+    size_t last_char_in_rel2 = hyp_rel2.rfind(')') - 1;
+    hyp_rel2 = hyp_rel2.substr(first_char_in_rel2, last_char_in_rel2 - first_char_in_rel2 + 1);
+
+
+    string lemma = lemmaSent.at(i);
+    string lemma2 = lemmaSent.at(i+1);
+    if( (lemma2 == "et" ||lemma2 == "ol" || lemma2 == "ver" || lemma2 =="yap" || lemma2 =="kýl" || lemma2=="buyur") && hyp_rel2 == "compound")
+    {
+        string compound_verb = wit + string(" ") + lemma2;
+        string compound_verb2 = lemma + string(" ") + lemma2;
+        cerr << "out: " << compound_verb << endl;
+           
+
+        if(isCompVerb(compound_verb) || isCompVerb(compound_verb2))
+        {
+
+          rel_hyp.at(i+1) = string("LEFT-ARC(compound:lvc)");
+          hyp_rel2 = "compound:lvc";
+        }
+    }
+    
+    if( (lemma2 == "et" ||lemma2 == "ol" || lemma2 == "ver" || lemma2 =="yap" || lemma2 =="kýl" || lemma2=="buyur") && hyp_rel2 != "compound:lvc")
+    {
+       //cerr << "i am in compound rule" << endl;    
+           
+           string compound_verb = wit + string(" ") + lemma2;
+           string compound_verb2 = lemma + string(" ") + lemma2;
+           cerr << "out: " << compound_verb << endl;
+           
+
+           if(isCompVerb(compound_verb) || isCompVerb(compound_verb2))
+           {
+                cerr << compound_verb << endl;
+
+               if(hyp_head2 != index)
+               {
+               // if(hyp_head == index+1)
+               // {
+                    
+                    hyp.at(i) = hyp.find(i+1)->second;
+                    rel_hyp.at(i) = string("RIGHT-ARC(") + hyp_rel2 + string(")");
+                    //correct the heads of other words:
+                    for (unsigned j = 0; j < (sentence.size()-1); ++j) {
+ 
+                        assert(j < sentenceUnkStrings.size() && 
+                       ((sentence[j] == corpus.get_or_add_word(cpyp::Corpus::UNK) &&
+                        sentenceUnkStrings[j].size() > 0) ||
+                       (sentence[j] != corpus.get_or_add_word(cpyp::Corpus::UNK) &&
+                        sentenceUnkStrings[j].size() == 0 &&
+                        intToWords.find(sentence[j]) != intToWords.end())));
+                        
+                        assert(hyp.find(j) != hyp.end());
+                        auto hyp_head_j = hyp.find(j)->second + 1;
+                        if(hyp_head_j == index+1)
+                            hyp.at(j) = index-1;
+                    }
+                       
+
+
+                //}
+                hyp.at(i+1) = index-1;
+
+                //auto tmp2_hyp_rel = tmp_hyp_rel_it->second;
+                cerr << "relation: " << rel_hyp.at(i+1) << endl;
+                rel_hyp.at(i+1) = string("LEFT-ARC(compound:lvc)");
+                cerr << "relation changed: " << rel_hyp.at(i+1) << endl;
+              }
+           } 
+
+       }
+   
+    }
+
+}
+
 
 void output_conll_test(const vector<unsigned>& sentence, 
                   const vector<string>& lemmaSent, //my code
@@ -1322,8 +1450,10 @@ void output_conll_test(const vector<unsigned>& sentence,
                   const vector<string>& sentenceUnkStrings, 
                   const map<unsigned, string>& intToWords, 
                   const map<unsigned, string>& intToPos, 
-                  /*const*/ map<int,int>& hyp, const map<int,string>& rel_hyp) {
+                  /*const*/ map<int,int>& hyp, /*const*/ map<int,string>& rel_hyp) {
   for (unsigned i = 0; i < (sentence.size()-1); ++i) {
+    //cerr << "word id: " << i+1 << endl;
+    
     auto index = i + 1;
     assert(i < sentenceUnkStrings.size() && 
            ((sentence[i] == corpus.get_or_add_word(cpyp::Corpus::UNK) &&
@@ -1344,6 +1474,9 @@ void output_conll_test(const vector<unsigned>& sentence,
     size_t last_char_in_rel = hyp_rel.rfind(')') - 1;
     hyp_rel = hyp_rel.substr(first_char_in_rel, last_char_in_rel - first_char_in_rel + 1);
 
+    //info of next word
+    string wit2 = (sentenceUnkStrings[i+1].size() > 0)? 
+    sentenceUnkStrings[i+1] : intToWords.find(sentence[i+1])->second;
     auto pit2 = intToPos.find(pos[i+1]);
     auto hyp_rel_it2 = rel_hyp.find(i+1);
     assert(hyp_rel_it2 != rel_hyp.end());
@@ -1351,42 +1484,103 @@ void output_conll_test(const vector<unsigned>& sentence,
     size_t first_char_in_rel2 = hyp_rel2.find('(') + 1;
     size_t last_char_in_rel2 = hyp_rel2.rfind(')') - 1;
     hyp_rel2 = hyp_rel2.substr(first_char_in_rel2, last_char_in_rel2 - first_char_in_rel2 + 1);
+/*
 
-
-/*    if(pit->second == "ADJ_Adj" && hyp_rel == "amod" && pit2->second == "NOUN_Noun") // && !boost::starts_with(hyp_rel2, "compound"))
+    if(pit->second == "ADJ_Adj" && hyp_rel == "amod" && pit2->second == "NOUN_Noun") // && !boost::starts_with(hyp_rel2, "compound"))
     {
        auto temp = hyp_head;
        hyp_head = index+1;
+       if (hyp_head == (int)sentence.size()) hyp_head = 0;
+
        auto hyp_head2 = hyp.find(i+1)->second + 1;
-
-       //cerr << "hyp_head: " << hyp_head << " hyp_head2: " << hyp_head2 << " index: " << index << endl;
-       //cerr << "inside if: " << hyp.find(i+1)->first << " " << hyp.find(i+1)->second + 1 << endl;
-
+       
        if(hyp_head2 == index)
        {
          // const int indexDummy = index;
-
           hyp.at(i+1) = temp-1;
          // cerr << " inside if: " << hyp.find(i+1)->first << " " << hyp.find(i+1)->second + 1 << endl;
        }
        
     }
-
     if(pit->second == "ADV_Adverb" && hyp_rel == "advmod" && pit2->second == "VERB_Verb")// && !boost::starts_with(hyp_rel2, "compound"))
+    {
+       auto temp = hyp_head;
+       hyp_head = index+1;
+       if (hyp_head == (int)sentence.size()) hyp_head = 0;
+
+       auto hyp_head2 = hyp.find(i+1)->second + 1;
+       if(hyp_head2 == index)
+       {
+          hyp.at(i+1) = temp-1;
+       }
+    }
+    if(pit->second == "INTJ_Interj") 
+    {
+       hyp_rel = "discourse";   
+    }
+    if(pit->second == "AUX_Zero")
+    {
+       hyp_rel = "cop";   
+    }
+    if(pit->second == "VERB_Verb" && lemmaSent.at(i) == "et" && hyp_rel == "compound")
     {
        auto temp = hyp_head;
        hyp_head = index+1;
        auto hyp_head2 = hyp.find(i+1)->second + 1;
        if(hyp_head2 == index)
        {
-
           hyp.at(i+1) = temp-1;
+       } 
+    }
+    string lemma2 = lemmaSent.at(i+1);
+    if( (lemma2 == "et" ||lemma2 == "ol" || lemma2 == "ver" || lemma2 =="yap" || lemma2 =="kýl" || lemma2=="buyur") && hyp_rel2 != "compound:lvc")
+    {
+       //cerr << "i am in compound rule" << endl;    
+           string lemma = lemmaSent.at(i);
+           string compound_verb = wit + string(" ") + lemma2;
+           string compound_verb2 = lemma + string(" ") + lemma2;
+           cerr << "out: " << compound_verb << endl;
+           
+
+           if(isCompVerb(compound_verb) || isCompVerb(compound_verb2))
+           {
+                cerr << compound_verb << endl;
+
+                auto tmp_hyp_rel_it = rel_hyp.find(i+1);
+                assert(tmp_hyp_rel_it != rel_hyp.end());
+                auto tmp_hyp_rel = tmp_hyp_rel_it->second;
+                size_t tmp_first_char_in_rel = tmp_hyp_rel.find('(') + 1;
+                size_t tmp_last_char_in_rel = tmp_hyp_rel.rfind(')') - 1;
+                tmp_hyp_rel = tmp_hyp_rel.substr(tmp_first_char_in_rel, tmp_last_char_in_rel - tmp_first_char_in_rel + 1);
+
+
+                if(hyp_head == index+1)
+                {
+                    
+                    hyp_head = hyp.find(i+1)->second + 1;
+                    if (hyp_head == (int)sentence.size()) hyp_head = 0;
+
+                    hyp_rel = tmp_hyp_rel; //bir sonraki kelimenin deprel i
+
+                }
+                hyp.at(i+1) = index-1;
+
+                auto tmp2_hyp_rel = tmp_hyp_rel_it->second;
+                cerr << "relation: " << rel_hyp.at(i+1) << endl;
+                rel_hyp.at(i+1) = tmp2_hyp_rel.substr(0, tmp_first_char_in_rel-1) + string("(compound:lvc)");
+                cerr << "relation changed: " << rel_hyp.at(i+1) << endl;
+
+                
+           } 
 
        }
+   
+
+     */  
 
 
-    }
-*/
+
+
     //mycode
     /*cerr << "helloo " << endl;
     cerr << index<< endl;
@@ -1529,7 +1723,7 @@ int main(int argc, char** argv) {
     boost::archive::text_iarchive ia(in);
     ia >> model;
   }
- // cerr << "hello1" << endl;
+  cerr << "hello1" << endl;
   // OOV words will be replaced by UNK tokens
   corpus.load_correct_actionsDev(conf["dev_data"].as<string>());
 //  cerr << "hello2" << endl;
@@ -1539,6 +1733,7 @@ int main(int argc, char** argv) {
     signal(SIGINT, signal_callback_handler);
     SimpleSGDTrainer sgd(&model);
     //MomentumSGDTrainer sgd(&model);
+   // AdamTrainer sgd(&model);
     sgd.eta_decay = 0.08;
     //sgd.eta_decay = 0.05;
     cerr << "Training started. "<<"\n";
@@ -1771,7 +1966,7 @@ int main(int argc, char** argv) {
       map<int, string> rel_ref, rel_hyp;
       map<int,int> ref = parser.compute_heads(sentence.size(), actions, corpus.actions, &rel_ref);
       map<int,int> hyp = parser.compute_heads(sentence.size(), pred, corpus.actions, &rel_hyp);
-      
+      postprocessing(sentence, lemmaSentTest, sentencePos, sentenceUnkStr, corpus.intToWords, corpus.intToPos, hyp, rel_hyp);
       output_conll_test(sentence, lemmaSentTest, morpSentTest, uposSentTest, xposSentTest, spaceSentTest, sentencePos, sentenceUnkStr, corpus.intToWords, corpus.intToPos, hyp, rel_hyp);
       correct_heads += compute_correct(ref, hyp, sentence.size() - 1);
       total_heads += sentence.size() - 1;
