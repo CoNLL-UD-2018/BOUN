@@ -1721,9 +1721,11 @@ int main(int argc, char** argv) {
   if (conf.count("model")) {
     ifstream in(conf["model"].as<string>().c_str());
     boost::archive::text_iarchive ia(in);
+    cerr << "after boost archive" << endl;
     ia >> model;
+    cerr << "after model" << endl;
   }
-  cerr << "hello1" << endl;
+  cerr << "hello" << endl;
   // OOV words will be replaced by UNK tokens
   corpus.load_correct_actionsDev(conf["dev_data"].as<string>());
 //  cerr << "hello2" << endl;
@@ -1966,7 +1968,7 @@ int main(int argc, char** argv) {
       map<int, string> rel_ref, rel_hyp;
       map<int,int> ref = parser.compute_heads(sentence.size(), actions, corpus.actions, &rel_ref);
       map<int,int> hyp = parser.compute_heads(sentence.size(), pred, corpus.actions, &rel_hyp);
-      postprocessing(sentence, lemmaSentTest, sentencePos, sentenceUnkStr, corpus.intToWords, corpus.intToPos, hyp, rel_hyp);
+      //postprocessing(sentence, lemmaSentTest, sentencePos, sentenceUnkStr, corpus.intToWords, corpus.intToPos, hyp, rel_hyp);
       output_conll_test(sentence, lemmaSentTest, morpSentTest, uposSentTest, xposSentTest, spaceSentTest, sentencePos, sentenceUnkStr, corpus.intToWords, corpus.intToPos, hyp, rel_hyp);
       correct_heads += compute_correct(ref, hyp, sentence.size() - 1);
       total_heads += sentence.size() - 1;
