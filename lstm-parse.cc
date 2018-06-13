@@ -216,11 +216,11 @@ vector<vector<string>> readConllData(const string& filename, const string& keywo
         std::istringstream iss(line);
         vector<string> tokens(istream_iterator<string>{iss},
                                            istream_iterator<string>());
-
-       // cerr << "line:" << line << ":" << endl;
+       // cerr << "\n" << endl;
+       // cerr << "$" << line << "*" << endl;
         if(line != "" && !boost::starts_with(line, "#") && tokens.at(0).find('-') == std::string::npos )
         {
-           // cerr << "in: " << line << endl;
+         //   cerr << "in: " << line << endl;
             string tok = "";
             if(keyword == "word")
                tok = tokens.at(1);
@@ -430,7 +430,7 @@ struct ParserBuilder {
   LSTMBuilder bw_char_lstm; //Miguel
   //mycode starts
   LSTMBuilder fw_char_lstm_root; 
-  LSTMBuilder fw_char_lstm_stem; 
+ // LSTMBuilder fw_char_lstm_stem; 
 
   LSTMBuilder fw_char_lstm_case; 
   LSTMBuilder fw_char_lstm_tense; 
@@ -438,7 +438,7 @@ struct ParserBuilder {
   LSTMBuilder fw_char_lstm_aspect; 
 
   LSTMBuilder bw_char_lstm_root; 
-  LSTMBuilder bw_char_lstm_stem; 
+//  LSTMBuilder bw_char_lstm_stem; 
 /*
   LSTMBuilder bw_char_lstm_case; 
   LSTMBuilder bw_char_lstm_tense; 
@@ -483,15 +483,15 @@ struct ParserBuilder {
      // fw_char_lstm(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model), //Miguel 
      // bw_char_lstm(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model), /*Miguel*/
       /*mycode starts*/fw_char_lstm_root(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model),
-      fw_char_lstm_stem(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model),
+     // fw_char_lstm_stem(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model),
 
       fw_char_lstm_case(LAYERS, LSTM_INPUT_DIM, 25, model),
       fw_char_lstm_tense(LAYERS, LSTM_INPUT_DIM, 25, model),
       fw_char_lstm_verbform(LAYERS, LSTM_INPUT_DIM, 25, model),
       fw_char_lstm_aspect(LAYERS, LSTM_INPUT_DIM, 25, model),
 
-      bw_char_lstm_root(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model),
-      bw_char_lstm_stem(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model)
+      bw_char_lstm_root(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model)
+    //  bw_char_lstm_stem(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model)
 
      // bw_char_lstm_case(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/2, model)
       //bw_char_lstm_tense(LAYERS, LSTM_INPUT_DIM, LSTM_CHAR_OUTPUT_DIM/4, model),
@@ -731,7 +731,7 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
        //mycode starts
 	
        fw_char_lstm_root.new_graph(*hg);
-       fw_char_lstm_stem.new_graph(*hg);
+      // fw_char_lstm_stem.new_graph(*hg);
        fw_char_lstm_case.new_graph(*hg);
        fw_char_lstm_tense.new_graph(*hg);
        fw_char_lstm_verbform.new_graph(*hg);
@@ -739,7 +739,7 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
 
 
        bw_char_lstm_root.new_graph(*hg);
-       bw_char_lstm_stem.new_graph(*hg);
+      // bw_char_lstm_stem.new_graph(*hg);
       // bw_char_lstm_case.new_graph(*hg);
        //bw_char_lstm_tense.new_graph(*hg);
        //bw_char_lstm_verbform.new_graph(*hg);
@@ -787,6 +787,7 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
          {
             stem = "";
          }
+         //cerr << "lemma suf: " << lemma << " " << stem << endl;
       }
       // mycode ends
       
@@ -806,13 +807,14 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
           w=lookup(*hg, p_w, sent[i]); //we do not need a LSTM encoding for the root word, so we put it directly-.
         }
         else {
-            std::string ww_root = lemma; 
-	    std::string ww_stem = stem;
+            std::string ww_root = ww;//lemma; 
+	  //  std::string ww_stem = stem;
             std::string ww_case = morpFeatures.at(0);
             std::string ww_tense = morpFeatures.at(1);
             std::string ww_verbform = morpFeatures.at(2);
             std::string ww_aspect = morpFeatures.at(3);
            
+           // cerr << ww_case << " " << ww_tense << " " << ww_verbform << " " << ww_aspect << endl;
             //root of a word
             std::vector<int> strevbuffer;
             Expression fw_r = createLstmCharEmbForward(ww_root, fw_char_lstm_root, hg, word_start, word_end, strevbuffer);
@@ -820,13 +822,13 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
             Expression bw_r = createLstmCharEmbBackward(ww_root, bw_char_lstm_root, hg, word_start, word_end, strevbuffer);
 													                         
             //backwards root done
-                                 
-	    //stem of a word
+         /*                        
+	   //stem of a word
             std::vector<int> strevbuffer2;
 	    Expression fw_s = createLstmCharEmbForward( ww_stem, fw_char_lstm_stem, hg, word_start, word_end, strevbuffer2);
             //now backwards for root
             Expression bw_s = createLstmCharEmbBackward(ww_stem, bw_char_lstm_stem, hg, word_start, word_end, strevbuffer2);
-													                                  
+	*/												                                  
             //backwards stem done
           
             //forward case feature
@@ -851,11 +853,10 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
             //now backwards for voice
           //  Expression bw_a = createLstmCharEmbBackward(ww_aspect, bw_char_lstm_aspect, hg, word_start, word_end, strevbuffer6);
                 
-            
-             //vector<Expression> tt = {fw_r, bw_r, fw_s, bw_s, fw_c, bw_c}; //, fw_t, bw_t, fw_vf, bw_vf, fw_v, bw_v};
-             vector<Expression> tt = {fw_r, bw_r, fw_s, bw_s, fw_c, fw_t, fw_vf, fw_a};
+                        //vector<Expression> tt = {fw_r, bw_r, fw_s, bw_s, fw_c, bw_c}; // , fw_t, bw_t, fw_vf, bw_vf, fw_v, bw_v};
+             vector<Expression> tt = {fw_r, bw_r, fw_c, fw_t, fw_vf, fw_a};
              w=concatenate(tt); //and this goes into the buffer...
-		        
+          
 	    //mycode ends
             
 	}
@@ -886,6 +887,7 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
       buffer[sent.size() - i] = rectify(i_i);
       bufferi[sent.size() - i] = i;
     }
+    
     // dummy symbol to represent the empty buffer
     buffer[0] = parameter(*hg, p_buffer_guard);
     bufferi[0] = -999;
@@ -910,6 +912,7 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
           continue;
         current_valid_actions.push_back(a);
       }
+    
 
       // p_t = pbias + S * slstm + B * blstm + A * almst
       Expression p_t = affine_transform({pbias, S, stack_lstm.back(), B, buffer_lstm.back(), A, action_lstm.back()});
@@ -918,22 +921,35 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
       Expression r_t = affine_transform({abias, p2a, nlp_t});
 
       // adist = log_softmax(r_t, current_valid_actions)
+  
       Expression adiste = log_softmax(r_t, current_valid_actions);
+     
+
       vector<float> adist = as_vector(hg->incremental_forward());
+   
+
       double best_score = adist[current_valid_actions[0]];
+      
+
       unsigned best_a = current_valid_actions[0];
+    
+
       for (unsigned i = 1; i < current_valid_actions.size(); ++i) {
+        
         if (adist[current_valid_actions[i]] > best_score) {
           best_score = adist[current_valid_actions[i]];
           best_a = current_valid_actions[i];
         }
       }
+ 
       unsigned action = best_a;
       if (build_training_graph) {  // if we have reference actions (for training) use the reference action
         action = correct_actions[action_count];
+
         if (best_a == action) { (*right)++; }
       }
       ++action_count;
+   
       // action_log_prob = pick(adist, action)
       log_probs.push_back(pick(adiste, action));
       results.push_back(action);
@@ -941,13 +957,13 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
       // add current action to action LSTM
       Expression actione = lookup(*hg, p_a, action);
       action_lstm.add_input(actione);
-
+    
       // get relation embedding from action (TODO: convert to relation from action?)
       Expression relation = lookup(*hg, p_r, action);
 
       // do action
       const string& actionString=setOfActions[action];
-      //cerr << "A=" << actionString << " Bsize=" << buffer.size() << " Ssize=" << stack.size() << endl;
+     // cerr << "A=" << actionString << " Bsize=" << buffer.size() << " Ssize=" << stack.size() << endl;
       const char ac = actionString[0];
       const char ac2 = actionString[1];
 
@@ -964,7 +980,7 @@ vector<unsigned> log_prob_parser(ComputationGraph* hg,
       else if (ac=='S' && ac2=='W'){ //SWAP --- Miguel
           assert(stack.size() > 2); // dummy symbol means > 2 (not >= 2)
 
-          //std::cout<<"SWAP: "<<"stack.size:"<<stack.size()<<"\n";
+          std::cout<<"SWAP: "<<"stack.size:"<<stack.size()<<"\n";
 
           Expression toki, tokj;
           unsigned ii = 0, jj = 0;
@@ -1728,7 +1744,7 @@ int main(int argc, char** argv) {
   cerr << "hello" << endl;
   // OOV words will be replaced by UNK tokens
   corpus.load_correct_actionsDev(conf["dev_data"].as<string>());
-//  cerr << "hello2" << endl;
+  cerr << "hello2" << endl;
   if (USE_SPELLING) VOCAB_SIZE = corpus.nwords + 1;
   //TRAINING
   if (conf.count("train")) {
@@ -1755,7 +1771,7 @@ int main(int argc, char** argv) {
     trainWords = readConllData(trainConllName, "word");
     trainLemmas = readConllData(trainConllName, "lemma");
     trainMorps = readConllData(trainConllName, "morp");	
-  //  cerr << " after trainwords" << endl;
+   // cerr << " after trainwords" << endl;
    // trainUPOS = readConllData(trainConllName, "upos");
    // trainXPOS = readConllData(trainConllName, "xpos");
    // trainSpace = readConllData(trainConllName, "space");
@@ -1776,6 +1792,7 @@ int main(int argc, char** argv) {
              random_shuffle(order.begin(), order.end());
            }
            tot_seen += 1;
+         //  cerr << "after shuffle" << endl;
            const vector<unsigned>& sentence=corpus.sentences[order[si]];
            vector<unsigned> tsentence=sentence;
 
@@ -1787,7 +1804,7 @@ int main(int argc, char** argv) {
            const vector<string> lemmaSentTrain = trainLemmas.at(order[si]);
            const vector<string> morpSentTrain = trainMorps.at(order[si]);
            const vector<WordLemmaPair> lemmaSentDummyTrain; 
-     
+          // cerr <<"hello end "<< endl;
            //mycode ends
 
            if (unk_strategy == 1 && !USE_SPELLING) {
@@ -1920,7 +1937,7 @@ int main(int argc, char** argv) {
     }
     else
     {
-      //  cerr << "hello bef test " << endl;
+        //cerr << "hello bef test  " << endl;
         testWords = readConllData(testConllName, "word");
         testLemmas = readConllData(testConllName, "lemma");
         testMorps = readConllData(testConllName, "morp");
@@ -1928,7 +1945,7 @@ int main(int argc, char** argv) {
         testXPOS = readConllData(testConllName, "xpos");
         testSpace = readConllData(testConllName, "space");
 
-      //  cerr << "hello aft test " << endl;
+        //cerr << "hello aft test " << endl;
 
     }
     //mycode
@@ -1948,9 +1965,10 @@ int main(int argc, char** argv) {
       const vector<string> xposSentTest = testXPOS.at(sii);
       const vector<string> spaceSentTest = testSpace.at(sii);
 
+      //cerr << lemmaSentTest.at(0) << " " << morpSentTest.at(0) << " " << endl; 
       const vector<WordLemmaPair> lemmaSentDummyTest; 
       //mycode
-     // cerr << "hello its me i was wondering  " << endl;
+      //cerr << "hello its me i was wondering  " << endl;
 
       if (!USE_SPELLING) {
         for (auto& w : tsentence)
@@ -1974,7 +1992,7 @@ int main(int argc, char** argv) {
       total_heads += sentence.size() - 1;
     }
     auto t_end = std::chrono::high_resolution_clock::now();
-    cerr << "TEST llh=" << llh << " ppl: " << exp(llh / trs) << " err: " << (trs - right) / trs << " uas: " << (correct_heads / total_heads) << "\t[" << corpus_size << " sents in " << std::chrono::duration<double, std::milli>(t_end-t_start).count() << " ms]" << endl;
+    cerr << "TEST llh=" << llh << " ppl: " << exp(llh / trs) << " err:  " << (trs - right) / trs << " uas: " << (correct_heads / total_heads) << "\t[" << corpus_size << " sents in " << std::chrono::duration<double, std::milli>(t_end-t_start).count() << " ms]" << endl;
   }
   for (unsigned i = 0; i < corpus.actions.size(); ++i) {
     //cerr << corpus.actions[i] << '\t' << parser.p_r->values[i].transpose() << endl;
