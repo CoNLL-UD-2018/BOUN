@@ -38,7 +38,7 @@ def main(argv):
       lcode = dat["lcode"]
       tcode = dat["tcode"]
 	  
-      if lcode == "grc" or lcode == "ro" or lcode == "lv" or tcode == "postwita" or lcode == "fa" or lcode == "tr" or lcode == "hu" or lcode == "he":
+      if True:
 	  
 
          print(dat["psegmorfile"])
