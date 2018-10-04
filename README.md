@@ -7,7 +7,7 @@ The full description of the updated version of the parser can be found [here](ht
 
 You can find the source codes of the lemma-suffix model, the morphological features model and the baseline model under following branches: [lemmaSuffix](https://github.com/CoNLL-UD-2018/BOUN/tree/lemmaSuffix), [wordMorp](https://github.com/CoNLL-UD-2018/BOUN/tree/wordMorp), [baseline](https://github.com/CoNLL-UD-2018/BOUN/tree/baseline).
 
-For the installation of the required software, please follow the instruction in the official [LSTM-Parser code repository](https://github.com/clab/lstm-parser/tree/char-based).
+For the installation of the required software, please follow the instruction in the [LSTM-Parser code repository](https://github.com/clab/lstm-parser/tree/char-based).
 
 After the installation of the required software, please replace the following files and folders with the ones in the [lemmaSuffix](https://github.com/CoNLL-UD-2018/BOUN/tree/lemmaSuffix) branch to experiment with the lemma-suffix model, or the ones in the [wordMorp](https://github.com/CoNLL-UD-2018/BOUN/tree/wordMorp) branch to experiment with the morphological features model:
 
